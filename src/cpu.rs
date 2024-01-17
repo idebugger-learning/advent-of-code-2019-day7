@@ -48,6 +48,7 @@ pub struct CPU {
     memory: Vec<isize>,
     ip: usize,
     halted: bool,
+    waiting_for_stdin: bool,
     stdin: Vec<isize>,
     stdin_position: usize,
     stdout: Vec<isize>,
@@ -59,22 +60,28 @@ impl CPU {
             memory: program.clone(),
             ip: 0,
             halted: false,
+            waiting_for_stdin: false,
             stdin: vec![],
             stdin_position: 0,
             stdout: vec![],
         }
     }
 
+    pub fn push_stdin(&mut self, input: isize) {
+        self.waiting_for_stdin = false;
+        self.stdin.push(input);
+    }
+
     pub fn get_stdout(&self) -> &Vec<isize> {
         &self.stdout
     }
 
-    pub fn run(&mut self, stdin: Option<Vec<isize>>) {
-        if let Some(stdin) = stdin {
-            self.stdin = stdin;
-        }
+    pub fn is_halted(&self) -> bool {
+        self.halted
+    }
 
-        while !self.halted {
+    pub fn run(&mut self) {
+        while !self.halted && !self.waiting_for_stdin {
             self.step();
         }
     }
@@ -190,11 +197,15 @@ impl CPU {
     fn opcode_read(&mut self, pmode: ParameterMode) {
         let target_pos = self.get_operand_addr(self.ip + 1, pmode);
 
-        let integer = self.stdin[self.stdin_position];
-        self.stdin_position += 1;
+        if self.stdin.len() > self.stdin_position {
+            let integer = self.stdin[self.stdin_position];
+            self.stdin_position += 1;
 
-        self.memory[target_pos] = integer;
-        self.ip += 2;
+            self.memory[target_pos] = integer;
+            self.ip += 2;
+        } else {
+            self.waiting_for_stdin = true;
+        }
     }
 
     fn opcode_write(&mut self, pmode: ParameterMode) {

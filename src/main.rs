@@ -10,18 +10,30 @@ fn main() {
         .map(|s| s.parse::<isize>().expect("Failed to parse isize"))
         .collect();
 
-    let phases: Vec<isize> = vec![0, 1, 2, 3, 4];
+    let phases: Vec<isize> = vec![5, 6, 7, 8, 9];
     let max_thrust = phases
         .iter()
         .permutations(phases.len())
         .map(|phases| {
-            let thrust = phases.iter().fold(0, |acc, &&phase| {
-                let mut cpu = CPU::new(&program);
-                cpu.run(Some(vec![phase, acc]));
-                let output = cpu.get_stdout();
-                output[0]
-            });
-            (phases, thrust)
+            let mut cpus = phases
+                .iter()
+                .map(|&&phase| {
+                    let mut cpu = CPU::new(&program);
+                    cpu.push_stdin(phase);
+                    cpu
+                })
+                .collect::<Vec<_>>();
+
+            let mut last_value = 0;
+            while !cpus.last().unwrap().is_halted() {
+                for cpu in &mut cpus {
+                    cpu.push_stdin(last_value);
+                    cpu.run();
+                    last_value = *cpu.get_stdout().last().unwrap();
+                }
+            }
+
+            (phases, last_value)
         })
         .max_by_key(|(_, thrust)| *thrust);
 
